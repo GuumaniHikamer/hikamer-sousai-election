@@ -66,20 +66,22 @@ export async function onRequestPost({ request, env }) {
 
     const hash = await hmac(env.IP_HASH_SECRET, day + ":" + ip);
 
-    const x = await env.DB.prepare(
-      "INSERT OR IGNORE INTO daily_votes(vote_day, ip_hash, candidate_id) VALUES(?,?,?)"
-    ).bind(day, hash, id).run();
+   const results = await env.DB.batch([
+  env.DB.prepare(
+    "INSERT OR IGNORE INTO daily_votes(vote_day, ip_hash, candidate_id) VALUES(?,?,?)"
+  ).bind(day, hash, id),
 
-    if (!x.meta.changes) {
-      return Response.json(
-        { error: "今日は投票済みです。また明日投票できます。" },
-        { status: 409 }
-      );
-    }
+  env.DB.prepare(
+    "UPDATE vote_totals SET votes = votes + 1 WHERE candidate_id = ? AND changes() > 0"
+  ).bind(id)
+]);
 
-    await env.DB.prepare(
-      "INSERT INTO vote_totals(candidate_id, votes) VALUES(?,1) ON CONFLICT(candidate_id) DO UPDATE SET votes=votes+1"
-    ).bind(id).run();
+if (!results[0].meta.changes) {
+  return Response.json(
+    { error: "今日は投票済みです。また明日投票できます。" },
+    { status: 409 }
+  );
+}
 
     return Response.json({ message: "投票を受け付けました。" });
   } catch {
