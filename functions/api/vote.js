@@ -12,7 +12,10 @@ const IDS = [
   "bun_sushi",
   "phony_mania",
   "cross_mania",
-  "kohachi_mania"
+  "kohachi_mania",
+  "toufuneko",
+  "mopper",
+  "akabane_tv"
 ];
 
 const START = Date.parse("2026-10-31T15:00:00Z");
