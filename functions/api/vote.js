@@ -1,3 +1,4 @@
+
 const IDS = [
   "all_mania",
   "death_oyster",
@@ -23,10 +24,13 @@ const END = Date.parse("2026-11-07T15:00:00Z");
 
 export async function onRequestPost({ request, env }) {
   try {
-   return Response.json(
+    // メンテナンス中は投票を一時停止
+    return Response.json(
       { error: "現在メンテナンス中です。しばらくお待ちください。" },
       { status: 503 }
     );
+
+    const now = Date.now();
 
     // 日本時間 11/1 00:00 ～ 11/8 00:00
     if (now < START || now >= END) {
@@ -83,39 +87,32 @@ export async function onRequestPost({ request, env }) {
       day + ":" + ip
     );
 
-    // 先に投票記録を登録。同じIP・同じ日なら登録されない
-    const inserted = await env.DB.prepare(
-      "INSERT OR IGNORE INTO daily_votes (vote_day, ip_hash, candidate_id) VALUES (?, ?, ?)"
-    ).bind(day, hash, id).run();
+    // 投票記録と票数加算をまとめて実行
+    const results = await env.DB.batch([
+      env.DB.prepare(
+        "INSERT OR IGNORE INTO daily_votes (vote_day, ip_hash, candidate_id) VALUES (?, ?, ?)"
+      ).bind(day, hash, id),
 
-    if (!inserted.meta.changes) {
+      env.DB.prepare(
+        "UPDATE vote_totals SET votes = votes + 1 WHERE candidate_id = ? AND changes() = 1"
+      ).bind(id)
+    ]);
+
+    if (!results[0].meta.changes) {
       return Response.json(
         { error: "今日は投票済みです。また明日投票できます。" },
         { status: 409 }
       );
     }
 
-    // 新規登録できた場合だけ票数を加算
-    try {
-      const updated = await env.DB.prepare(
-        "UPDATE vote_totals SET votes = votes + 1 WHERE candidate_id = ?"
-      ).bind(id).run();
-
-      if (!updated.meta.changes) {
-        throw new Error("投票集計先が見つかりません。");
-      }
-    } catch (error) {
-      // 集計に失敗した場合は投票記録を取り消し、再投票できるようにする
-      await env.DB.prepare(
-        "DELETE FROM daily_votes WHERE vote_day = ? AND ip_hash = ? AND candidate_id = ?"
-      ).bind(day, hash, id).run();
-
-      throw error;
+    if (!results[1].meta.changes) {
+      throw new Error("投票集計先が見つかりません。");
     }
 
     return Response.json({
       message: "投票を受け付けました。"
     });
+
   } catch {
     return Response.json(
       { error: "投票処理中にエラーが発生しました。" },
