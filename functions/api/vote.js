@@ -79,11 +79,6 @@ export async function onRequestPost({ request, env }) {
       );
     }
 
-    // メンテナンス中：検証のみ実行し、投票は受け付けない
-    return Response.json(
-      { error: "現在メンテナンス中です。しばらくお待ちください。" },
-      { status: 503 }
-    );
 
     // 以下はメンテナンス解除後に実行される投票処理
     const now = Date.now();
