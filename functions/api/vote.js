@@ -24,29 +24,74 @@ const END = Date.parse("2026-11-07T15:00:00Z");
 
 export async function onRequestPost({ request, env }) {
   try {
-    // メンテナンス中は投票を一時停止
-    return Response.json(
-      { error: "現在メンテナンス中です。しばらくお待ちください。" },
-      { status: 503 }
-    );
-
-    const now = Date.now();
-
-    // 日本時間 11/1 00:00 ～ 11/8 00:00
-    if (now < START || now >= END) {
-      return Response.json(
-        { error: "現在は投票期間外です。" },
-        { status: 403 }
-      );
-    }
-
     const b = await request.json();
     const id = String(b?.candidateId || "");
+    const token = String(b?.turnstileToken || "");
 
     if (!IDS.includes(id)) {
       return Response.json(
         { error: "候補者を選択してください。" },
         { status: 400 }
+      );
+    }
+
+    if (!token || token.length > 2048) {
+      return Response.json(
+        { error: "セキュリティ検証を完了してください。" },
+        { status: 403 }
+      );
+    }
+
+    if (!env.TURNSTILE_SECRET_KEY) {
+      return Response.json(
+        { error: "セキュリティ設定が未完了です。" },
+        { status: 500 }
+      );
+    }
+
+    const ip = request.headers.get("CF-Connecting-IP");
+
+    const verification = await fetch(
+      "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          secret: env.TURNSTILE_SECRET_KEY,
+          response: token,
+          remoteip: ip || undefined
+        })
+      }
+    );
+
+    if (!verification.ok) {
+      throw new Error("Turnstile verification service unavailable");
+    }
+
+    const verificationResult = await verification.json();
+
+    if (!verificationResult.success) {
+      return Response.json(
+        { error: "セキュリティ検証に失敗しました。再度お試しください。" },
+        { status: 403 }
+      );
+    }
+
+    // メンテナンス中：検証のみ実行し、投票は受け付けない
+    return Response.json(
+      { error: "現在メンテナンス中です。しばらくお待ちください。" },
+      { status: 503 }
+    );
+
+    // 以下はメンテナンス解除後に実行される投票処理
+    const now = Date.now();
+
+    if (now < START || now >= END) {
+      return Response.json(
+        { error: "現在は投票期間外です。" },
+        { status: 403 }
       );
     }
 
@@ -56,8 +101,6 @@ export async function onRequestPost({ request, env }) {
         { status: 500 }
       );
     }
-
-    const ip = request.headers.get("CF-Connecting-IP");
 
     if (!ip) {
       return Response.json(
@@ -87,7 +130,6 @@ export async function onRequestPost({ request, env }) {
       day + ":" + ip
     );
 
-    // 投票記録と票数加算をまとめて実行
     const results = await env.DB.batch([
       env.DB.prepare(
         "INSERT OR IGNORE INTO daily_votes (vote_day, ip_hash, candidate_id) VALUES (?, ?, ?)"
