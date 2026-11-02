@@ -20,7 +20,10 @@ const END = Date.parse("2026-11-07T15:00:00Z");
 
 export async function onRequestPost({ request, env }) {
   try {
-    const now = Date.now();
+   return Response.json(
+      { error: "現在メンテナンス中です。しばらくお待ちください。" },
+      { status: 503 }
+    );
 
     // 日本時間 11/1 00:00 ～ 11/8 00:00
     if (now < START || now >= END) {
