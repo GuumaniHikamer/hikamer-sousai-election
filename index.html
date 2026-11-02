@@ -110,43 +110,63 @@ o.textContent='結果を取得できません。設定を確認してくださ�
 }
 }
 
-document.getElementById('vote').onsubmit=async e=>{
-e.preventDefault();
 
-let id=new FormData(e.currentTarget).get('candidate');
-let token=new FormData(e.currentTarget).get('cf-turnstile-response');
+document.getElementById('vote').onsubmit = async e => {
+  e.preventDefault();
 
-if(!id){
-document.getElementById('status').textContent='候補者を選択してください。';
-return;
-}
+  const form = e.currentTarget;
+  const id = new FormData(form).get('candidate');
+  const token = new FormData(form).get('cf-turnstile-response');
+  const status = document.getElementById('status');
+  const button = form.querySelector('button[type="submit"], button:not([type])');
 
-if(!token){
-document.getElementById('status').textContent='セキュリティ検証を完了してください。';
-return;
-}
+  if (!id) {
+    status.textContent = '候補者を選択してください。';
+    return;
+  }
 
-if(!confirm('この候補に投票しますか？'))return;
+  if (!token) {
+    status.textContent = 'セキュリティ検証を完了してください。';
+    return;
+  }
 
-let s=document.getElementById('status');
-s.textContent='送信中…';
+  if (!confirm('この候補に投票しますか？')) return;
 
-try{
-let r=await fetch('/api/vote',{
-method:'POST',
-headers:{'Content-Type':'application/json'},
-body:JSON.stringify({
-candidateId:id,
-turnstileToken:token
-})
-});
-let d=await r.json();
-s.textContent=d.message||d.error;
-if(r.ok)load();
-}catch{
-s.textContent='通信エラーです';
-}
+  button.disabled = true;
+  status.textContent = '送信中…';
+
+  try {
+    const r = await fetch('/api/vote', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        candidateId: id,
+        turnstileToken: token
+      })
+    });
+
+    const d = await r.json();
+    status.textContent = d.message || d.error;
+
+    if (r.ok) {
+      await load();
+    }
+
+  } catch {
+    status.textContent = '通信エラーです';
+
+  } finally {
+    // 使用済みトークンを破棄して再検証できる状態に戻す
+    if (window.turnstile) {
+      window.turnstile.reset();
+    }
+
+    button.disabled = false;
+  }
 };
+
 
 document.getElementById('refresh').onclick=load;
 load();
