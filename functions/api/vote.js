@@ -13,7 +13,15 @@ const END = Date.parse("2026-11-14T15:00:00Z");
 const VOTING_OPEN = true;
 
 export async function onRequestPost({ request, env }) {
-  try {
+  try { 
+    const requestHostname = new URL(request.url).hostname;
+
+if (requestHostname !== "hikamer-sousai-election.pages.dev") {
+  return Response.json(
+    { error: "このURLからは投票できません。" },
+    { status: 403 }
+  );
+}
     if (!VOTING_OPEN) {
       return Response.json(
         { error: "現在、決選投票を一時停止しています。" },
