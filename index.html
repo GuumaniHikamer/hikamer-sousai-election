@@ -1,9 +1,8 @@
-
 <!doctype html>
 <html lang="ja">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ヒカマーズ総裁選</title>
+<title>ヒカマーズ総裁選・決選投票</title>
 
 <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 
@@ -18,12 +17,12 @@ button{width:100%;padding:14px;border:0;border-radius:10px;background:#7c9cff;fo
 .turnstile{margin-top:16px}
 </style>
 
-<h1>ヒカマーズ総裁選</h1>
-<p class="muted">予選投票：1人につき日本時間で1日1票</p>
+<h1>ヒカマーズ総裁選・決選投票</h1>
+<p class="muted">4人の中から2人を選択してください。1人につき日本時間で1日1回投票できます。</p>
 
 <section>
-<h2>投票する</h2>
-<p class="muted">投票制限のため、IPアドレスと日付から作成した秘密鍵付きハッシュ値を利用します。</p>
+<h2>決選投票</h2>
+<p class="muted">2人を選択して投票してください。</p>
 
 <form id="vote">
 <div id="candidates"></div>
@@ -36,7 +35,7 @@ data-size="flexible">
 </div>
 </div>
 
-<button type="submit">この候補に投票する</button>
+<button type="submit">この2人に投票する</button>
 <p id="status" role="status"></p>
 </form>
 </section>
@@ -50,78 +49,80 @@ data-size="flexible">
 <script>
 const cs=[
 {"id":"all_mania","name":"all_mania（現 サ・カ・ナ）"},
-{"id":"death_oyster","name":"デス牡蠣（現「イ」とう）"},
-{"id":"cocacola_fridge","name":"コカ・コーラ自販機型冷蔵庫_mania（現 とうまマニア）"},
 {"id":"chaimania","name":"ちゃいまに"},
-{"id":"mugcup_mania","name":"マグカップ_mania"},
-{"id":"nyn_aniki2","name":"nyn姉貴2"},
-{"id":"tsuru_mania","name":"つる_mania"},
-{"id":"shigaraki_kun","name":"死柄キン"},
-{"id":"konmania","name":"こんまに"},
-{"id":"gunmania","name":"群馬ニア"},
-{"id":"bun_sushi","name":"ぶん🍣"},
-{"id":"phony_mania","name":"フォニイ_mania（現 小西綾乃_mania）"},
 {"id":"cross_mania","name":"十字架_mania（現 コ.ミ.ュ.ニ.ス.ト.ヤ.フ.ォ.ダ.）"},
-{"id":"kohachi_mania","name":"小八_mania"},
-{"id":"toufuneko","name":"とうふねこ"},
-{"id":"mopper","name":"もっぱー"},
-{"id":"akabane_tv","name":"赤羽TV"}
+{"id":"konmania","name":"こんまに"}
 ];
 
 for(const c of cs){
-let l=document.createElement('label'),
-r=document.createElement('input'),
-s=document.createElement('span');
-r.type='radio';
-r.name='candidate';
-r.value=c.id;
-r.required=true;
-s.textContent=c.name;
-l.append(r,s);
-document.getElementById('candidates').append(l);
+  let l=document.createElement('label'),
+      r=document.createElement('input'),
+      s=document.createElement('span');
+
+  r.type='checkbox';
+  r.name='candidate';
+  r.value=c.id;
+
+  s.textContent=c.name;
+
+  l.append(r,s);
+  document.getElementById('candidates').append(l);
 }
 
 async function load(){
-let o=document.getElementById('results');
-try{
-let r=await fetch('/api/results',{cache:'no-store'}),
-d=await r.json();
-if(!r.ok)throw 0;
-o.replaceChildren();
-let total=d.results.reduce((a,x)=>a+x.votes,0),
-max=Math.max(1,...d.results.map(x=>x.votes));
-let p=document.createElement('p');
-p.textContent='総投票数：'+total+'票';
-o.append(p);
-for(let c of cs){
-let x=d.results.find(y=>y.id===c.id)||{votes:0},
-n=document.createElement('div');
-n.textContent=c.name+' — '+x.votes+'票';
-let b=document.createElement('div'),
-f=document.createElement('div');
-b.className='bar';
-f.className='fill';
-f.style.width=x.votes/max*100+'%';
-b.append(f);
-o.append(n,b);
-}
-}catch{
-o.textContent='結果を取得できません。設定を確認してください。';
-}
-}
+  let o=document.getElementById('results');
 
+  try{
+    let r=await fetch('/api/results',{cache:'no-store'}),
+        d=await r.json();
+
+    if(!r.ok)throw 0;
+
+    o.replaceChildren();
+
+    let total=d.results.reduce((a,x)=>a+x.votes,0),
+        max=Math.max(1,...d.results.map(x=>x.votes));
+
+    let p=document.createElement('p');
+    p.textContent='総選択数：'+total+'票';
+    o.append(p);
+
+    for(let c of cs){
+      let x=d.results.find(y=>y.id===c.id)||{votes:0},
+          n=document.createElement('div');
+
+      n.textContent=c.name+' — '+x.votes+'票';
+
+      let b=document.createElement('div'),
+          f=document.createElement('div');
+
+      b.className='bar';
+      f.className='fill';
+      f.style.width=x.votes/max*100+'%';
+
+      b.append(f);
+      o.append(n,b);
+    }
+
+  }catch{
+    o.textContent='結果を取得できません。設定を確認してください。';
+  }
+}
 
 document.getElementById('vote').onsubmit = async e => {
   e.preventDefault();
 
   const form = e.currentTarget;
-  const id = new FormData(form).get('candidate');
+
+  const ids = [...form.querySelectorAll('input[name="candidate"]:checked')]
+    .map(input => input.value);
+
   const token = new FormData(form).get('cf-turnstile-response');
   const status = document.getElementById('status');
-  const button = form.querySelector('button[type="submit"], button:not([type])');
+  const button = form.querySelector('button[type="submit"]');
 
-  if (!id) {
-    status.textContent = '候補者を選択してください。';
+  if (ids.length !== 2) {
+    status.textContent = '2人を選択してください。';
     return;
   }
 
@@ -130,7 +131,7 @@ document.getElementById('vote').onsubmit = async e => {
     return;
   }
 
-  if (!confirm('この候補に投票しますか？')) return;
+  if (!confirm('この2人に投票しますか？')) return;
 
   button.disabled = true;
   status.textContent = '送信中…';
@@ -142,12 +143,13 @@ document.getElementById('vote').onsubmit = async e => {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        candidateId: id,
+        candidateIds: ids,
         turnstileToken: token
       })
     });
 
     const d = await r.json();
+
     status.textContent = d.message || d.error;
 
     if (r.ok) {
@@ -158,7 +160,6 @@ document.getElementById('vote').onsubmit = async e => {
     status.textContent = '通信エラーです';
 
   } finally {
-    // 使用済みトークンを破棄して再検証できる状態に戻す
     if (window.turnstile) {
       window.turnstile.reset();
     }
@@ -167,8 +168,8 @@ document.getElementById('vote').onsubmit = async e => {
   }
 };
 
-
 document.getElementById('refresh').onclick=load;
+
 load();
 </script>
 </html>
