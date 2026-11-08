@@ -5,7 +5,7 @@ const IDS = [
   "konmania"
 ];
 
-const END = Date.parse("2026-11-14T15:00:00Z");
+const END = Date.parse("2026-11-08T15:00:00Z");
 
 export async function onRequestPost({ request, env }) {
   try {
