@@ -98,9 +98,10 @@ if (requestHostname !== "hikamer-sousai-election.pages.dev") {
 
     const verificationResult = await verification.json();
 
-    if (
+ if (
   !verificationResult.success ||
-  verificationResult.hostname !== "hikamer-sousai-election.pages.dev"
+  verificationResult.hostname !== "hikamer-sousai-election.pages.dev" ||
+  verificationResult.action !== "vote"
 ) {
   return Response.json(
     { error: "セキュリティ検証に失敗しました。再度お試しください。" },
