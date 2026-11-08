@@ -1,40 +1,27 @@
-
 const CS = [
-  {"id":"all_mania","name":"all_mania（現 サ・カ・ナ）"},
-  {"id":"death_oyster","name":"デス牡蠣（現「イ」とう）"},
-  {"id":"cocacola_fridge","name":"コカ・コーラ自販機型冷蔵庫_mania（現 とうまマニア）"},
   {"id":"chaimania","name":"ちゃいまに"},
-  {"id":"mugcup_mania","name":"マグカップ_mania"},
-  {"id":"nyn_aniki2","name":"nyn姉貴2"},
-  {"id":"tsuru_mania","name":"つる_mania"},
-  {"id":"shigaraki_kun","name":"死柄キン"},
-  {"id":"konmania","name":"こんまに"},
-  {"id":"gunmania","name":"群馬ニア"},
-  {"id":"bun_sushi","name":"ぶん🍣"},
-  {"id":"phony_mania","name":"フォニイ_mania（現 小西綾乃_mania）"},
-  {"id":"cross_mania","name":"十字架_mania（現 コ.ミ.ュ.ニ.ス.ト.ヤ.フ.ォ.ダ.）"},
-  {"id":"kohachi_mania","name":"小八_mania"},
-  {"id":"toufuneko","name":"とうふねこ"},
-  {"id":"mopper","name":"もっぱー"},
-  {"id":"akabane_tv","name":"赤羽TV"}
+  {"id":"cross_mania","name":"十字架_mania"},
+  {"id":"all_mania","name":"all_mania"},
+  {"id":"konmania","name":"こんまに"}
 ];
 
 export async function onRequestGet({ env }) {
   try {
     const { results } = await env.DB
-      .prepare("SELECT candidate_id, votes FROM vote_totals")
+      .prepare(
+        "SELECT candidate_id, votes FROM runoff_vote_totals"
+      )
       .all();
 
-    const m = new Map(
-      results.map(x => [x.candidate_id, x.votes])
+    const map = new Map(
+      results.map(row => [row.candidate_id, row.votes])
     );
 
     return Response.json(
       {
         results: CS.map(c => ({
-          id: c.id,
-          name: c.name,
-          votes: m.get(c.id) || 0
+          ...c,
+          votes: map.get(c.id) ?? 0
         }))
       },
       {
@@ -45,7 +32,7 @@ export async function onRequestGet({ env }) {
     );
   } catch {
     return Response.json(
-      { error: "集計を取得できません。" },
+      { error: "結果を取得できませんでした。" },
       { status: 500 }
     );
   }
