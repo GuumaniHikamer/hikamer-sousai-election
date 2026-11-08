@@ -5,10 +5,22 @@ const IDS = [
   "konmania"
 ];
 
-const END = Date.parse("2026-11-08T15:00:00Z");
+// 2026-11-15 00:00 JST
+// = 11/14 23:59 まで投票可能
+const END = Date.parse("2026-11-14T15:00:00Z");
+
+// 動作確認が終わるまでは閉鎖
+const VOTING_OPEN = false;
 
 export async function onRequestPost({ request, env }) {
   try {
+    if (!VOTING_OPEN) {
+      return Response.json(
+        { error: "現在、決選投票を一時停止しています。" },
+        { status: 503 }
+      );
+    }
+
     const b = await request.json();
 
     const ids = Array.isArray(b?.candidateIds)
@@ -41,7 +53,21 @@ export async function onRequestPost({ request, env }) {
       );
     }
 
+    if (!env.DB || !env.IP_HASH_SECRET) {
+      return Response.json(
+        { error: "サーバー設定が未完了です。" },
+        { status: 500 }
+      );
+    }
+
     const ip = request.headers.get("CF-Connecting-IP");
+
+    if (!ip) {
+      return Response.json(
+        { error: "接続情報を確認できません。" },
+        { status: 400 }
+      );
+    }
 
     const verification = await fetch(
       "https://challenges.cloudflare.com/turnstile/v0/siteverify",
@@ -53,7 +79,7 @@ export async function onRequestPost({ request, env }) {
         body: JSON.stringify({
           secret: env.TURNSTILE_SECRET_KEY,
           response: token,
-          remoteip: ip || undefined
+          remoteip: ip
         })
       }
     );
@@ -71,26 +97,10 @@ export async function onRequestPost({ request, env }) {
       );
     }
 
-    const now = Date.now();
-
-    if (now >= END) {
+    if (Date.now() >= END) {
       return Response.json(
         { error: "決選投票は終了しました。" },
         { status: 403 }
-      );
-    }
-
-    if (!env.DB || !env.IP_HASH_SECRET) {
-      return Response.json(
-        { error: "サーバー設定が未完了です。" },
-        { status: 500 }
-      );
-    }
-
-    if (!ip) {
-      return Response.json(
-        { error: "接続情報を確認できません。" },
-        { status: 400 }
       );
     }
 
@@ -115,39 +125,33 @@ export async function onRequestPost({ request, env }) {
       day + ":" + ip
     );
 
-    const results = await env.DB.batch([
-      env.DB.prepare(
-        "INSERT OR IGNORE INTO runoff_daily_votes (vote_day, ip_hash) VALUES (?, ?)"
-      ).bind(day, hash),
+    const result = await env.DB.prepare(`
+      INSERT INTO runoff_votes_v2 (
+        vote_day,
+        ip_hash,
+        candidate_id_1,
+        candidate_id_2
+      )
+      VALUES (?, ?, ?, ?)
+      ON CONFLICT(vote_day, ip_hash) DO NOTHING
+    `)
+      .bind(day, hash, ids[0], ids[1])
+      .run();
 
-      env.DB.prepare(
-        "UPDATE runoff_vote_totals SET votes = votes + 1 WHERE candidate_id = ?"
-      ).bind(ids[0]),
-
-      env.DB.prepare(
-        "UPDATE runoff_vote_totals SET votes = votes + 1 WHERE candidate_id = ?"
-      ).bind(ids[1])
-    ]);
-
-    if (!results[0].meta.changes) {
+    if (!result.meta.changes) {
       return Response.json(
         { error: "今日は投票済みです。また明日投票できます。" },
         { status: 409 }
       );
     }
 
-    if (
-      !results[1].meta.changes ||
-      !results[2].meta.changes
-    ) {
-      throw new Error("決選集計先が見つかりません。");
-    }
-
     return Response.json({
       message: "決選投票を受け付けました。"
     });
 
-  } catch {
+  } catch (e) {
+    console.error(e);
+
     return Response.json(
       { error: "投票処理中にエラーが発生しました。" },
       { status: 500 }
