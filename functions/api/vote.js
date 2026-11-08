@@ -1,36 +1,28 @@
-
 const IDS = [
-  "all_mania",
-  "death_oyster",
-  "cocacola_fridge",
   "chaimania",
-  "mugcup_mania",
-  "nyn_aniki2",
-  "tsuru_mania",
-  "shigaraki_kun",
-  "konmania",
-  "gunmania",
-  "bun_sushi",
-  "phony_mania",
   "cross_mania",
-  "kohachi_mania",
-  "toufuneko",
-  "mopper",
-  "akabane_tv"
+  "all_mania",
+  "konmania"
 ];
 
-const START = Date.parse("2026-10-31T15:00:00Z");
-const END = Date.parse("2026-11-07T15:00:00Z");
+const END = Date.parse("2026-11-14T15:00:00Z");
 
 export async function onRequestPost({ request, env }) {
   try {
     const b = await request.json();
-    const id = String(b?.candidateId || "");
+
+    const ids = Array.isArray(b?.candidateIds)
+      ? [...new Set(b.candidateIds.map(String))]
+      : [];
+
     const token = String(b?.turnstileToken || "");
 
-    if (!IDS.includes(id)) {
+    if (
+      ids.length !== 2 ||
+      ids.some(id => !IDS.includes(id))
+    ) {
       return Response.json(
-        { error: "候補者を選択してください。" },
+        { error: "2人を選択してください。" },
         { status: 400 }
       );
     }
@@ -79,13 +71,11 @@ export async function onRequestPost({ request, env }) {
       );
     }
 
-
-    // 以下はメンテナンス解除後に実行される投票処理
     const now = Date.now();
 
-    if (now < START || now >= END) {
+    if (now >= END) {
       return Response.json(
-        { error: "現在は投票期間外です。" },
+        { error: "決選投票は終了しました。" },
         { status: 403 }
       );
     }
@@ -127,12 +117,16 @@ export async function onRequestPost({ request, env }) {
 
     const results = await env.DB.batch([
       env.DB.prepare(
-        "INSERT OR IGNORE INTO daily_votes (vote_day, ip_hash, candidate_id) VALUES (?, ?, ?)"
-      ).bind(day, hash, id),
+        "INSERT OR IGNORE INTO runoff_daily_votes (vote_day, ip_hash) VALUES (?, ?)"
+      ).bind(day, hash),
 
       env.DB.prepare(
-        "UPDATE vote_totals SET votes = votes + 1 WHERE candidate_id = ? AND changes() = 1"
-      ).bind(id)
+        "UPDATE runoff_vote_totals SET votes = votes + 1 WHERE candidate_id = ?"
+      ).bind(ids[0]),
+
+      env.DB.prepare(
+        "UPDATE runoff_vote_totals SET votes = votes + 1 WHERE candidate_id = ?"
+      ).bind(ids[1])
     ]);
 
     if (!results[0].meta.changes) {
@@ -142,12 +136,15 @@ export async function onRequestPost({ request, env }) {
       );
     }
 
-    if (!results[1].meta.changes) {
-      throw new Error("投票集計先が見つかりません。");
+    if (
+      !results[1].meta.changes ||
+      !results[2].meta.changes
+    ) {
+      throw new Error("決選集計先が見つかりません。");
     }
 
     return Response.json({
-      message: "投票を受け付けました。"
+      message: "決選投票を受け付けました。"
     });
 
   } catch {
