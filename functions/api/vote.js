@@ -90,12 +90,15 @@ export async function onRequestPost({ request, env }) {
 
     const verificationResult = await verification.json();
 
-    if (!verificationResult.success) {
-      return Response.json(
-        { error: "セキュリティ検証に失敗しました。再度お試しください。" },
-        { status: 403 }
-      );
-    }
+    if (
+  !verificationResult.success ||
+  verificationResult.hostname !== "hikamer-sousai-election.pages.dev"
+) {
+  return Response.json(
+    { error: "セキュリティ検証に失敗しました。再度お試しください。" },
+    { status: 403 }
+  );
+}
 
     if (Date.now() >= END) {
       return Response.json(
