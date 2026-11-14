@@ -10,7 +10,7 @@ const IDS = [
 const END = Date.parse("2026-11-14T15:00:00Z");
 
 // 動作確認が終わるまでは閉鎖
-const VOTING_OPEN = true;
+const VOTING_OPEN = false;
 
 export async function onRequestPost({ request, env }) {
   try { 
